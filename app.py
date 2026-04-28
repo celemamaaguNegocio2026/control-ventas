@@ -10,8 +10,8 @@ st.title("🛍️ Gestión Familiar - Celeste")
 url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
 csv_url = url_planilla.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
 
-# Link de tu Formulario de Google
-url_formulario = "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform?usp=header"
+# Link definitivo de tu Formulario de Google
+url_formulario = "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform?usp=sf_link"
 
 def cargar_datos():
     return pd.read_csv(csv_url)
