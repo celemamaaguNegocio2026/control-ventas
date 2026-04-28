@@ -1,3 +1,2 @@
-gspread
+st-gsheets-connection
 pandas
-google-auth
