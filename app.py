@@ -1,51 +1,43 @@
 import streamlit as st
 import pandas as pd
-from streamlit_barcode_scanner import st_barcode_scanner
+from streamlit_barcode_reader import streamlit_barcode_reader
 
-# Configuración visual
 st.set_page_config(page_title="Sistema Pro - Gestión Familiar", page_icon="📲")
 
 st.title("📲 Sistema Inteligente - Celeste")
 
-# URL de tu planilla
 url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
 csv_url = url_planilla.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
 url_formulario = "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform?usp=sf_link"
 
 def cargar_datos():
-    # Forzamos la lectura de los códigos de barra como texto para que no borre los ceros
     return pd.read_csv(csv_url, dtype={'Código de Barras': str})
 
 try:
     df = cargar_datos()
-    
     menu = st.sidebar.radio("ACCIONES", ["🏠 Inicio", "🔍 Escanear Producto", "📦 Stock Completo", "💰 Registrar Venta"])
 
     if menu == "🏠 Inicio":
         st.subheader(f"¡Hola Celeste!")
-        st.write("El sistema ya reconoce tus códigos de barra. ¿Qué querés hacer hoy?")
+        st.write("El sistema está listo para reconocer códigos.")
         
     elif menu == "🔍 Escanear Producto":
         st.subheader("📷 Escáner de Cámara")
-        st.write("Apuntá al código de barras del producto:")
+        st.write("Apuntá al código de barras:")
         
-        # Aquí se activa la cámara
-        barcode = st_barcode_scanner()
+        # Nueva función de escáner corregida
+        barcode = streamlit_barcode_reader()
         
         if barcode:
             st.success(f"Código detectado: {barcode}")
-            
-            # Buscamos el producto en tu Excel
-            # Asegurate que en tu Excel la columna se llame exactamente: Código de Barras
             if 'Código de Barras' in df.columns:
-                producto_encontrado = df[df['Código de Barras'] == barcode]
-                
+                producto_encontrado = df[df['Código de Barras'] == str(barcode)]
                 if not producto_encontrado.empty:
                     st.balloons()
                     st.write("### ✅ Producto Encontrado:")
                     st.table(producto_encontrado)
                 else:
-                    st.warning("El código no está en la planilla. ¿Querés agregarlo?")
+                    st.warning(f"El código {barcode} no está en la planilla.")
             else:
                 st.error("No encuentro la columna 'Código de Barras' en tu Excel.")
 
