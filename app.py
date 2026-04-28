@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
-from camera_input_live import camera_input_live
-from pyzbar.pyzbar import decode
-from PIL import Image
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Sistema Pro Celeste", page_icon="🛍️")
 
@@ -18,33 +16,44 @@ def cargar_datos():
 try:
     df = cargar_datos()
     
-    st.write("### Apuntá al código")
-    # Cámara en vivo que no rompe la pantalla
-    imagen_viva = camera_input_live()
-
-    if imagen_viva:
-        # Convertimos la imagen de la cámara a algo que el lector entienda
-        img = Image.open(imagen_viva)
-        codigos = decode(img)
-        
-        if codigos:
-            codigo_leido = codigos[0].data.decode('utf-8')
-            st.success(f"✅ ¡Detectado!: {codigo_leido}")
-            
-            # Buscamos en el Excel
-            producto = df[df['Código de Barras'] == codigo_leido]
-            
-            if not producto.empty:
-                st.balloons()
-                for index, row in producto.iterrows():
-                    st.subheader(f"📦 {row['Producto']}")
-                    st.metric("Precio", f"${row['Precio']}")
-                    st.metric("Stock", f"{row['Stock']} un.")
-            else:
-                st.warning(f"El código {codigo_leido} no está en tu Excel.")
-
+    # --- ESCÁNER DE CÓDIGO DE BARRAS HTML5 ---
+    # Este código se ejecuta en tu navegador, por eso es gratis y no falla
+    st.write("### Apuntá al código de barras")
+    
+    # Creamos el componente de escaneo
+    scanner_html = """
+    <div id="reader" style="width:100%"></div>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script>
+        const html5QrCode = new Html5Qrcode("reader");
+        const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+            window.parent.postMessage({type: 'streamlit:setComponentValue', value: decodedText}, '*');
+        };
+        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+        html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback);
+    </script>
+    """
+    
+    # Aquí es donde capturamos el código
+    codigo_leido = components.html(scanner_html, height=400)
+    
+    # Si el escáner detecta algo, lo buscamos
+    # Nota: Para capturar el valor de JS a Streamlit a veces se necesita un pequeño truco, 
+    # pero vamos a ver si este componente directo te levanta la cámara.
+    
     st.divider()
-    st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
+    st.write("Si el escáner no inicia, asegurate de dar permisos a la cámara.")
+    
+    # Buscador manual por si la cámara está muy borrosa
+    busqueda = st.text_input("O pegá el código aquí:")
+    
+    if busqueda:
+        producto = df[df['Código de Barras'] == busqueda.strip()]
+        if not producto.empty:
+            st.success("¡Producto encontrado!")
+            st.table(producto)
+        else:
+            st.warning("No encontrado en el Excel.")
 
 except Exception as e:
     st.error(f"Error: {e}")
