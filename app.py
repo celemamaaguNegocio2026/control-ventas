@@ -6,11 +6,11 @@ st.set_page_config(page_title="Sistema Celeste", page_icon="🛍️")
 
 st.title("🚀 Escáner de Negocio")
 
-# Carga de datos
+# Carga de datos rápida
 url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
 csv_url = url_planilla.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=1) # Casi sin caché para que no se trabe
 def cargar_datos():
     try:
         data = pd.read_csv(csv_url, dtype=str)
@@ -22,60 +22,54 @@ def cargar_datos():
 df = cargar_datos()
 
 if df is not None:
-    # 1. El Escáner (HTML/JS)
-    # Este bloque detecta el código y lo "grita" para que Streamlit lo escuche
-    st.write("### 📷 Apuntá al código")
+    # EL COMPONENTE MÁS SIMPLE POSIBLE
+    st.write("### 📷 Apuntá al código de barras")
     
-    codigo_leido = components.html(
+    # Este bloque solo hace UNA cosa: detectar y mandar el dato
+    codigo_detectado = components.html(
         """
         <div id="reader" style="width: 100%;"></div>
         <script src="https://unpkg.com/html5-qrcode"></script>
         <script>
             function onScanSuccess(decodedText) {
-                // Enviamos el dato directamente
                 window.parent.postMessage({
                     type: 'streamlit:setComponentValue',
                     value: decodedText
                 }, '*');
             }
             const html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, onScanSuccess);
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess);
         </script>
         """,
         height=350,
     )
 
-    # 2. El Buscador (Lógica de Python)
-    # Aquí es donde ocurre la magia: buscamos lo que detectó el componente
-    if codigo_leido:
-        # Convertimos a string y limpiamos cualquier residuo de código técnico
-        codigo_final = str(codigo_leido).strip()
+    # Si hay algo detectado (y no es el error largo anterior)
+    if codigo_detectado and len(str(codigo_detectado)) < 40:
+        st.divider()
+        val = str(codigo_detectado).strip()
         
-        # Filtramos para que no busque el texto largo de error si aparece
-        if len(codigo_final) < 50: 
-            st.divider()
-            
-            # Buscamos la columna de códigos (flexible)
-            col_cod = next((c for c in df.columns if "barra" in c.lower() or "codigo" in c.lower()), df.columns[0])
-            producto = df[df[col_cod] == codigo_final]
-            
-            if not producto.empty:
-                st.balloons()
-                for index, row in producto.iterrows():
-                    st.success(f"✅ ¡Detectado!: {codigo_final}")
-                    st.header(f"📦 {row.get('Producto', 'Sin nombre')}")
-                    c1, c2 = st.columns(2)
-                    c1.metric("PRECIO", f"${row.get('Precio', '0')}")
-                    c2.metric("STOCK", f"{row.get('Stock', '0')} un.")
-            else:
-                st.warning(f"El código {codigo_final} no está en tu Excel.")
+        # Buscamos en la primera columna (donde están tus códigos)
+        col_busqueda = df.columns[0] 
+        producto = df[df[col_busqueda] == val]
+        
+        if not producto.empty:
+            st.balloons()
+            for index, row in producto.iterrows():
+                st.success(f"✅ ¡Detectado!: {val}")
+                st.header(f"📦 {row.get('Producto', 'Sin nombre')}")
+                st.metric("PRECIO", f"${row.get('Precio', '0')}")
+                st.metric("STOCK", f"{row.get('Stock', '0')} un.")
+        else:
+            st.warning(f"Código {val} no encontrado en el Excel.")
 
     st.divider()
-    # Buscador manual por si la luz es mala
-    manual = st.text_input("🔍 O buscá por nombre:")
+    # Buscador manual que NUNCA falla por si la cámara sigue terca
+    manual = st.text_input("🔍 ¿No funciona la cámara? Escribí el nombre:")
     if manual:
         res = df[df['Producto'].str.contains(manual, case=False, na=False)]
         if not res.empty:
-            st.dataframe(res, hide_index=True)
+            st.write("Resultados encontrados:")
+            st.table(res[['Producto', 'Precio', 'Stock']])
 
 st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
