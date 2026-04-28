@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
-from streamlit_barcode_canvas import barcode_canvas
+from camera_input_live import camera_input_live
+from pyzbar.pyzbar import decode
+from PIL import Image
 
 st.set_page_config(page_title="Sistema Pro Celeste", page_icon="🛍️")
 
@@ -16,26 +18,30 @@ def cargar_datos():
 try:
     df = cargar_datos()
     
-    st.write("### Apuntá al código de barras")
-    st.info("Asegurate de dar permiso a la cámara cuando el celular te pregunte.")
+    st.write("### Apuntá al código")
+    # Cámara en vivo que no rompe la pantalla
+    imagen_viva = camera_input_live()
 
-    # Este es el cuadrito de la cámara que escanea solo
-    codigo_detectado = barcode_canvas()
-
-    if codigo_detectado:
-        st.success(f"✅ ¡Código leído!: {codigo_detectado}")
+    if imagen_viva:
+        # Convertimos la imagen de la cámara a algo que el lector entienda
+        img = Image.open(imagen_viva)
+        codigos = decode(img)
         
-        # Buscamos en el Excel
-        producto = df[df['Código de Barras'] == str(codigo_detectado).strip()]
-        
-        if not producto.empty:
-            st.balloons()
-            for index, row in producto.iterrows():
-                st.subheader(f"📦 {row['Producto']}")
-                st.metric("Precio", f"${row['Precio']}")
-                st.metric("Stock", f"{row['Stock']} unidades")
-        else:
-            st.warning(f"El código {codigo_detectado} no está en tu lista de Excel.")
+        if codigos:
+            codigo_leido = codigos[0].data.decode('utf-8')
+            st.success(f"✅ ¡Detectado!: {codigo_leido}")
+            
+            # Buscamos en el Excel
+            producto = df[df['Código de Barras'] == codigo_leido]
+            
+            if not producto.empty:
+                st.balloons()
+                for index, row in producto.iterrows():
+                    st.subheader(f"📦 {row['Producto']}")
+                    st.metric("Precio", f"${row['Precio']}")
+                    st.metric("Stock", f"{row['Stock']} un.")
+            else:
+                st.warning(f"El código {codigo_leido} no está en tu Excel.")
 
     st.divider()
     st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
