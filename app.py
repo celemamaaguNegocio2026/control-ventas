@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
-import streamlit.components.v1 as components
+from streamlit_barcode_reader import barcode_reader
 
 st.set_page_config(page_title="Sistema Pro Celeste", page_icon="🛍️")
 
-st.title("📷 Escáner en Vivo")
+st.title("📷 Escáner Celeste")
 
 # URL de tu planilla
 url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
@@ -16,44 +16,30 @@ def cargar_datos():
 try:
     df = cargar_datos()
     
-    # --- ESCÁNER DE CÓDIGO DE BARRAS HTML5 ---
-    # Este código se ejecuta en tu navegador, por eso es gratis y no falla
-    st.write("### Apuntá al código de barras")
+    st.write("### Enfocá el código de barras")
     
-    # Creamos el componente de escaneo
-    scanner_html = """
-    <div id="reader" style="width:100%"></div>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <script>
-        const html5QrCode = new Html5Qrcode("reader");
-        const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-            window.parent.postMessage({type: 'streamlit:setComponentValue', value: decodedText}, '*');
-        };
-        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-        html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback);
-    </script>
-    """
-    
-    # Aquí es donde capturamos el código
-    codigo_leido = components.html(scanner_html, height=400)
-    
-    # Si el escáner detecta algo, lo buscamos
-    # Nota: Para capturar el valor de JS a Streamlit a veces se necesita un pequeño truco, 
-    # pero vamos a ver si este componente directo te levanta la cámara.
-    
-    st.divider()
-    st.write("Si el escáner no inicia, asegurate de dar permisos a la cámara.")
-    
-    # Buscador manual por si la cámara está muy borrosa
-    busqueda = st.text_input("O pegá el código aquí:")
-    
-    if busqueda:
-        producto = df[df['Código de Barras'] == busqueda.strip()]
+    # Este es el lector mágico. Solo tenés que pasar el código por la cámara.
+    codigo_leido = barcode_reader(key='lector_celeste')
+
+    if codigo_leido:
+        # Mostramos el número que leyó para estar seguros
+        st.success(f"✅ ¡Leído!: {codigo_leido}")
+        
+        # Buscamos en el Excel (limpiando espacios por las dudas)
+        busqueda = str(codigo_leido).strip()
+        producto = df[df['Código de Barras'] == busqueda]
+        
         if not producto.empty:
-            st.success("¡Producto encontrado!")
-            st.table(producto)
+            st.balloons()
+            for index, row in producto.iterrows():
+                st.info(f"📦 Producto: {row['Producto']}")
+                st.metric("Precio", f"${row['Precio']}")
+                st.metric("Stock", f"{row['Stock']} unidades")
         else:
-            st.warning("No encontrado en el Excel.")
+            st.warning(f"El código {busqueda} no está cargado en el Excel.")
+
+    st.divider()
+    st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
 
 except Exception as e:
     st.error(f"Error: {e}")
