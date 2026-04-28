@@ -1,51 +1,50 @@
 import streamlit as st
 import pandas as pd
 
-# Configuración de la página
-st.set_page_config(page_title="Sistema de Ventas - Familia", layout="centered")
+# Configuración visual de la App
+st.set_page_config(page_title="Sistema Gestión Familiar", page_icon="🛍️")
 
-st.title("🚀 Gestión Familiar")
+st.title("🛍️ Gestión Familiar - Celeste")
 
-# URL de tu planilla (Método Directo)
-url = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
-csv_url = url.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
+# Conexión con tu planilla (Método Directo)
+url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
+csv_url = url_planilla.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
 
-# Función para leer datos
+# Link de tu Formulario de Google
+url_formulario = "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform?usp=header"
+
 def cargar_datos():
     return pd.read_csv(csv_url)
 
 try:
     df = cargar_datos()
     
-    # Menú lateral
-    menu = st.sidebar.radio("Menú de Navegación", ["🏠 Inicio", "📦 Ver Stock", "💰 Registrar Venta"])
+    # Menú lateral para navegar
+    menu = st.sidebar.radio("MENÚ PRINCIPAL", ["🏠 Inicio", "📦 Ver Stock / Precios", "💰 Registrar Venta"])
 
     if menu == "🏠 Inicio":
-        st.subheader(f"¡Hola Celeste!")
-        st.info("La App está conectada y lista para trabajar.")
-        st.write("Seleccioná una opción en el menú de la izquierda para empezar.")
+        st.subheader("¡Bienvenida!")
+        st.write("Esta es la App oficial para el negocio familiar.")
+        st.info("Usá el menú de la izquierda para ver qué hay en stock o para cargar una venta nueva.")
+        st.write("---")
+        st.write("💡 *Consejo: Podés usar esta App desde tu celular entrando al mismo link.*")
 
-    elif menu == "📦 Ver Stock":
+    elif menu == "📦 Ver Stock / Precios":
         st.subheader("📦 Inventario en tiempo real")
+        st.write("Esto es lo que hay cargado en el Excel actualmente:")
         st.dataframe(df, use_container_width=True)
+        if st.button("🔄 Actualizar Datos"):
+            st.rerun()
 
     elif menu == "💰 Registrar Venta":
-        st.subheader("💸 Nueva Venta")
-        with st.form("formulario_venta"):
-            vendedora = st.selectbox("¿Quién vende?", ["Celeste", "Agustina", "Mamá"])
-            producto = st.selectbox("Producto", df['Producto'].tolist() if 'Producto' in df.columns else ["Escribí el nombre abajo"])
-            if 'Producto' not in df.columns:
-                producto = st.text_input("Nombre del producto")
-            
-            cantidad = st.number_input("Cantidad", min_value=1, step=1)
-            pago = st.selectbox("Método de pago", ["Efectivo", "Ualá", "Brubank", "Yoy", "Otro"])
-            
-            boton = st.form_submit_button("Confirmar Venta")
-            
-            if boton:
-                st.success(f"¡Venta de {producto} registrada!")
-                st.balloons()
-                st.info("Nota: Por ahora la venta se visualiza aquí. En el próximo paso haremos que se guarde sola en el Excel.")
+        st.subheader("💸 Cargar Nueva Venta")
+        st.write("Hacé clic en el botón de abajo para abrir el formulario y registrar la operación.")
+        
+        # Botón grande y llamativo
+        st.link_button("🚀 ABRIR FORMULARIO DE VENTA", url_formulario, use_container_width=True)
+        
+        st.write("---")
+        st.caption("Una vez que envíes el formulario, la venta aparecerá automáticamente en la pestaña 'Respuestas' de tu planilla de Google.")
 
 except Exception as e:
-    st.error("Error al cargar los datos. Revisá que la planilla sea pública.")
+    st.error("Hubo un problema al conectar con la planilla. Revisá que siga siendo pública.")
