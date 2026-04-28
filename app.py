@@ -1,22 +1,16 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+import pandas as pd
 
-# Configuración de la pestaña del navegador
-st.set_page_config(page_title="App de Celeste", page_icon="🚀")
+st.title("🛍️ Gestión Familiar - Conexión Directa")
 
-# Título principal en la pantalla
-st.title("🛍️ Gestión Familiar - ¡FUNCIONA!")
-
-# Conexión con tu planilla de Google
+# Link directo (Cambiamos el método para no usar Secrets)
 url = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
-conn = st.connection("gsheets", type=GSheetsConnection)
+csv_url = url.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
 
-# Intentar leer los datos del inventario
 try:
-    df = conn.read(spreadsheet=url, worksheet="Inventario")
-    st.success("✅ ¡Conectado a la planilla con éxito, Celeste!")
-    st.subheader("Datos actuales en el Inventario:")
+    df = pd.read_csv(csv_url)
+    st.success("✅ ¡CONECTADO DIRECTAMENTE!")
+    st.write("Datos de tu planilla:")
     st.dataframe(df)
 except Exception as e:
-    st.error("Todavía falta configurar los 'Secrets' en la página de Streamlit")
-    st.info("Copiá el link de tu planilla en la configuración de la App.")
+    st.error("No se pudo leer la planilla. Asegurate de que esté en 'Cualquier persona con el enlace puede leer'.")
