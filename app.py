@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
-from streamlit_zxing import st_zxing
 
-st.set_page_config(page_title="Sistema Pro - Gestión Familiar", page_icon="🛍️")
+st.set_page_config(page_title="Gestión Familiar - Celeste", page_icon="🛍️")
 
-st.title("🚀 Escáner Pro - Celeste")
+st.title("🛍️ Sistema Celeste")
 
 # Conexión a tu planilla
 url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
@@ -16,35 +15,37 @@ def cargar_datos():
 try:
     df = cargar_datos()
     
-    menu = st.sidebar.radio("MENÚ", ["🔍 Escanear Producto", "📦 Inventario Completo", "💰 Registrar Venta"])
+    menu = st.sidebar.radio("MENÚ", ["🏠 Inicio", "🔍 Buscar Producto", "📦 Stock Completo", "💰 Registrar Venta"])
 
-    if menu == "🔍 Escanear Producto":
-        st.subheader("📷 Apuntá al código de barras")
-        st.info("Mantené el código dentro del recuadro. El sistema enfoca solo.")
+    if menu == "🔍 Buscar Producto":
+        st.subheader("🔎 Buscador Rápido")
+        # Aquí podés escribir el nombre o el código
+        busqueda = st.text_input("Escribí el nombre del producto o el código de barras:")
         
-        # Este componente es el más estable y no da errores de 'removeChild'
-        resultado = st_zxing(key='scanner')
-        
-        if resultado:
-            barcode = str(resultado)
-            st.success(f"✅ Código detectado: {barcode}")
+        if busqueda:
+            # Filtra por nombre o por código automáticamente
+            resultado = df[
+                df['Producto'].str.contains(busqueda, case=False, na=False) | 
+                df['Código de Barras'].str.contains(busqueda, na=False)
+            ]
             
-            # Buscamos en el Excel
-            producto = df[df['Código de Barras'] == barcode]
-            
-            if not producto.empty:
-                st.balloons()
-                st.write("### ✅ Producto Encontrado:")
-                st.table(producto)
+            if not resultado.empty:
+                st.success("¡Producto encontrado!")
+                st.table(resultado)
             else:
-                st.warning(f"El código {barcode} no está cargado en el Excel.")
+                st.warning("No se encontró nada con ese dato. ¿Está bien escrito?")
 
-    elif menu == "📦 Inventario Completo":
-        st.subheader("📋 Lista de Precios y Stock")
+    elif menu == "🏠 Inicio":
+        st.info("Bienvenida. El sistema se ha reiniciado para corregir los errores visuales.")
+        st.write("Usá el menú de la izquierda para navegar.")
+
+    elif menu == "📦 Stock Completo":
+        st.subheader("📋 Inventario en el Excel")
         st.dataframe(df, use_container_width=True)
 
     elif menu == "💰 Registrar Venta":
-        st.link_button("🚀 IR AL FORMULARIO", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
+        st.subheader("💸 Cargar Venta")
+        st.link_button("🚀 ABRIR FORMULARIO", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
 
 except Exception as e:
-    st.error(f"Hubo un error de conexión: {e}")
+    st.error(f"Error de conexión: {e}")
