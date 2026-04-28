@@ -1,55 +1,56 @@
 import streamlit as st
 import pandas as pd
+from streamlit_js_eval import streamlit_js_eval
 
-st.set_page_config(page_title="Gestión Celeste", page_icon="🛍️", layout="centered")
+st.set_page_config(page_title="Sistema Pro Celeste", page_icon="🛍️")
 
-# Estilo para celulares: botones grandes y texto claro
+# --- MOTOR DE CÁMARA JAVASCRIPT ---
 st.markdown("""
-    <style>
-    .stTextInput > div > div > input { font-size: 22px !important; }
-    button { height: 3em !important; width: 100% !important; }
-    </style>
-    """, unsafe_allow_html=True)
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <div id="reader" style="width: 100%;"></div>
+    <script>
+        function onScanSuccess(decodedText, decodedResult) {
+            // Enviamos el código detectado a Streamlit
+            window.parent.postMessage({type: 'streamlit:setComponentValue', value: decodedText}, '*');
+        }
+        let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
+""", unsafe_allow_html=True)
 
-st.title("🛍️ Sistema de Ventas")
+# --- LÓGICA DE LA APP ---
+st.title("📷 Escáner en Vivo")
 
 url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
 csv_url = url_planilla.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
 
 def cargar_datos():
-    return pd.read_csv(csv_url, dtype={'Código de Barras': str})
+    return pd.read_csv(csv_url, dtype=str)
 
 try:
     df = cargar_datos()
     
-    st.write("### 🔍 Buscador Inteligente")
-    busqueda = st.text_input("Pegá el código o escribí el nombre:", key="buscador")
-    
-    if busqueda:
-        # Buscamos coincidencias
-        resultado = df[
-            (df['Código de Barras'] == busqueda) | 
-            (df['Producto'].str.contains(busqueda, case=False, na=False))
-        ]
+    # Capturamos el código que viene del escáner arriba
+    codigo_detectado = st.text_input("Código detectado actualmente:", key="input_scan")
+
+    if codigo_detectado:
+        # Limpiamos el código por si trae espacios
+        codigo_limpio = codigo_detectado.strip()
         
-        if not resultado.empty:
-            for index, row in resultado.iterrows():
-                with st.container():
-                    st.success(f"**{row['Producto']}**")
-                    c1, c2 = st.columns(2)
-                    c1.metric("Precio", f"${row['Precio']}")
-                    c2.metric("Stock", f"{row['Stock']} un.")
-                    st.divider()
+        # Buscamos en el Excel
+        producto = df[df['Código de Barras'] == codigo_limpio]
+        
+        if not producto.empty:
+            st.balloons()
+            for index, row in producto.iterrows():
+                st.success(f"📦 PRODUCTO: {row['Producto']}")
+                st.metric("Precio", f"${row['Precio']}")
+                st.metric("Stock actual", f"{row['Stock']} unidades")
         else:
-            st.warning("No se encontró el producto. Verificá el código.")
+            st.warning(f"El código {codigo_limpio} no está en tu lista.")
 
     st.divider()
-    
-    # Botonera principal
-    st.link_button("💰 REGISTRAR VENTA (Formulario)", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
-    
-    if st.button("📋 Ver Inventario Completo"):
-        st.dataframe(df, use_container_width=True)
+    st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
 
 except Exception as e:
-    st.error(f"Error: {e}")
+    st.error(f"Error de conexión: {e}")
