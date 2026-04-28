@@ -1,13 +1,18 @@
 import streamlit as st
 import pandas as pd
-import cv2
-import numpy as np
 
-st.set_page_config(page_title="Gestión Familiar - Celeste", page_icon="🛍️")
+st.set_page_config(page_title="Gestión Celeste", page_icon="🛍️", layout="centered")
 
-st.title("📷 Escáner Celeste")
+# Estilo para celulares: botones grandes y texto claro
+st.markdown("""
+    <style>
+    .stTextInput > div > div > input { font-size: 22px !important; }
+    button { height: 3em !important; width: 100% !important; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Configuración de tu planilla
+st.title("🛍️ Sistema de Ventas")
+
 url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
 csv_url = url_planilla.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
 
@@ -17,39 +22,34 @@ def cargar_datos():
 try:
     df = cargar_datos()
     
-    st.write("### Escaneá tu producto aquí")
+    st.write("### 🔍 Buscador Inteligente")
+    busqueda = st.text_input("Pegá el código o escribí el nombre:", key="buscador")
     
-    # Este componente usa la cámara nativa del celular (la que mejor enfoca)
-    foto = st.camera_input("Apuntá al código de barras y sacá la foto")
-    
-    if foto:
-        # Convertir la imagen para que el sistema la lea
-        file_bytes = np.asarray(bytearray(foto.read()), dtype=np.uint8)
-        img = cv2.imdecode(file_bytes, 1)
+    if busqueda:
+        # Buscamos coincidencias
+        resultado = df[
+            (df['Código de Barras'] == busqueda) | 
+            (df['Producto'].str.contains(busqueda, case=False, na=False))
+        ]
         
-        # Detector de códigos
-        detector = cv2.barcode.BarcodeDetector()
-        ok, info, tipo, puntos = detector.detectAndDecode(img)
-        
-        if ok and info[0]:
-            codigo = str(info[0])
-            st.success(f"✅ ¡Leído con éxito! Código: {codigo}")
-            
-            # Buscar en el Excel
-            resultado = df[df['Código de Barras'] == codigo]
-            
-            if not resultado.empty:
-                st.balloons()
-                st.table(resultado)
-            else:
-                st.warning(f"El código {codigo} no está en tu lista de Excel.")
+        if not resultado.empty:
+            for index, row in resultado.iterrows():
+                with st.container():
+                    st.success(f"**{row['Producto']}**")
+                    c1, c2 = st.columns(2)
+                    c1.metric("Precio", f"${row['Precio']}")
+                    c2.metric("Stock", f"{row['Stock']} un.")
+                    st.divider()
         else:
-            st.error("❌ No se pudo leer el código. Intentá sacarla un poquito más lejos para que el celu pueda enfocar bien las barritas.")
+            st.warning("No se encontró el producto. Verificá el código.")
 
     st.divider()
     
-    # Botón para ir al formulario si querés vender
-    st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
+    # Botonera principal
+    st.link_button("💰 REGISTRAR VENTA (Formulario)", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
+    
+    if st.button("📋 Ver Inventario Completo"):
+        st.dataframe(df, use_container_width=True)
 
 except Exception as e:
     st.error(f"Error: {e}")
