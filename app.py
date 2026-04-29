@@ -5,23 +5,30 @@ from datetime import datetime
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="Gestión de Ventas", layout="centered")
 
-# URL de tu NUEVO formulario (ya corregida con /formResponse)
-URL_FORM = "https://docs.google.com/forms/d/e/1FAIpQLScRpTme1PM3g5t1soKW_2evI7-EjUCLX7Ya3_UpGnSor_Z5Eg/formResponse"
+# URL base de tu NUEVO formulario
+URL_BASE = "https://docs.google.com/forms/d/e/1FAIpQLScRpTme1PM3g5t1soKW_2evI7-EjUCLX7Ya3_UpGnSor_Z5Eg/formResponse"
 
 def enviar_venta_a_excel(usuario, monto, detalle):
     fecha_hoy = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     
-    # NUEVOS CÓDIGOS sacados de tu último formulario
-    payload = {
-        "entry.2069796014": str(usuario), # Código para USUARIO
-        "entry.1843577747": str(monto),   # Código para MONTO
-        "entry.473551532": str(detalle),  # Código para DETALLE
-        "entry.1693892789": str(fecha_hoy) # Código para FECHA
-    }
+    # Armamos la URL con los datos pegados al final (esto no falla)
+    # entry.2069796014 -> USUARIO
+    # entry.1843577747 -> MONTO
+    # entry.473551532  -> DETALLE
+    # entry.1693892789 -> FECHA
+    
+    url_final = (
+        f"{URL_BASE}?"
+        f"entry.2069796014={usuario}&"
+        f"entry.1843577747={monto}&"
+        f"entry.473551532={detalle}&"
+        f"entry.1693892789={fecha_hoy}&"
+        f"submit=Submit"
+    )
     
     try:
-        # Enviamos los datos a Google
-        r = requests.post(URL_FORM, data=payload)
+        # Usamos GET en lugar de POST para "empujar" los datos por la URL
+        r = requests.get(url_final)
         return r.status_code == 200
     except:
         return False
@@ -60,13 +67,12 @@ else:
         
         if st.button("🚀 GUARDAR EN EXCEL", use_container_width=True):
             if monto_v > 0:
-                with st.spinner("Subiendo datos..."):
-                    if enviar_venta_a_excel(st.session_state['usuario'], monto_v, detalle_v):
-                        st.success(f"¡Venta de ${monto_v} guardada correctamente!")
-                        st.balloons()
-                    else:
-                        st.error("Error al conectar con Google. Revisá el formulario.")
+                # Limpiamos el detalle de espacios o caracteres raros
+                detalle_limpio = detalle_v.replace(" ", "+")
+                if enviar_venta_a_excel(st.session_state['usuario'], monto_v, detalle_limpio):
+                    st.success(f"¡Venta de ${monto_v} enviada!")
+                    st.balloons()
+                else:
+                    st.error("Error al enviar.")
             else:
-                st.warning("Ingresá un monto válido.")
-
-    st.info("Recordá vincular este nuevo formulario a tu Excel desde la pestaña 'Respuestas' del formulario.")
+                st.warning("Ingresá un monto.")
