@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from pyzbar.pyzbar import decode
+import zxingcpp
 from PIL import Image
 import numpy as np
 
@@ -24,20 +24,24 @@ def cargar_datos():
 df = cargar_datos()
 
 if df is not None:
-    st.subheader("📷 Escanear Producto")
-    # Este botón abre la cámara nativa del celu, saca la foto y la sube
-    archivo_foto = st.camera_input("Sacá una foto al código de barras")
+    st.subheader("📷 Escanear con Foto")
+    st.info("Sacá la foto de cerca y bien enfocada. ¡Funciona con botellas!")
+    
+    archivo_foto = st.camera_input("Tomar foto del código")
 
     if archivo_foto:
-        # Procesamos la imagen para leer las barras
+        # Abrimos la imagen
         img = Image.open(archivo_foto)
-        detectado = decode(img)
         
-        if detectado:
-            codigo_leido = detectado[0].data.decode('utf-8')
+        # El nuevo sensor lee la imagen directamente
+        resultados = zxingcpp.read_barcodes(img)
+        
+        if resultados:
+            # Si detectó algo, tomamos el primer resultado
+            codigo_leido = resultados[0].text
             st.success(f"✅ Código detectado: {codigo_leido}")
             
-            # Buscamos en el Excel
+            # Buscamos en el Excel (columna: Codigo de barra)
             col_busqueda = "Codigo de barra"
             producto = df[df[col_busqueda] == codigo_leido]
             
@@ -51,14 +55,14 @@ if df is not None:
             else:
                 st.warning(f"El código {codigo_leido} no está en tu Excel.")
         else:
-            st.error("No se pudo leer el código. Intentá que la foto esté bien enfocada y con luz.")
+            st.error("No se detectó el código en la foto. Probá alejarte un poquito o mejorar la luz.")
 
     st.divider()
-    # Buscador manual por si no podés sacar la foto
+    # Buscador manual siempre listo
     manual = st.text_input("🔍 O buscá por nombre:")
     if manual:
         res = df[df['Producto'].str.contains(manual, case=False, na=False)]
         if not res.empty:
-            st.dataframe(res[['Producto', 'Precio', 'Stock']], hide_index=True)
+            st.table(res[['Producto', 'Precio', 'Stock']])
 
 st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
