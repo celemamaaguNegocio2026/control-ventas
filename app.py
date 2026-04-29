@@ -1,73 +1,53 @@
 import streamlit as st
-import pandas as pd
-import zxingcpp
-from PIL import Image
 
-st.set_page_config(page_title="Sistema Celeste", page_icon="🛍️")
+# --- CONFIGURACIÓN INICIAL ---
+st.set_page_config(page_title="celeagumama - Gestión", layout="centered")
 
-st.title("🛡️ Sistema de Ventas Celeste")
+# Simulación de los datos del Excel (Después conectaremos el Sheets real)
+usuarios = {
+    "Celeste": "1234", # Cambiá estos números por los que quieras
+    "Agu": "5678",
+    "Mamá": "9012"
+}
 
-# --- CONEXIÓN AL EXCEL ---
-url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
-csv_url = url_planilla.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
+# --- CONTROL DE SESIÓN ---
+if 'autenticado' not in st.session_state:
+    st.session_state['autenticado'] = False
+    st.session_state['usuario'] = None
 
-@st.cache_data(ttl=2)
-def cargar_datos():
-    try:
-        data = pd.read_csv(csv_url, dtype=str)
-        data.columns = [str(c).strip() for c in data.columns]
-        return data
-    except:
-        return None
-
-df = cargar_datos()
-
-if df is not None:
-    st.write("### 📷 Escanear Producto")
+# --- PANTALLA DE LOGIN ---
+if not st.session_state['autenticado']:
+    st.markdown("<h1 style='text-align: center;'>🔐 Acceso Gestión Familiar</h1>", unsafe_allow_html=True)
     
-    # Usamos el componente oficial de Streamlit (el más estable)
-    foto = st.camera_input("Sacale una foto al código de barras")
-
-    if foto:
-        # 1. Leemos la imagen
-        img = Image.open(foto)
+    # Elegir usuario
+    user = st.selectbox("¿Quién sos?", ["Seleccioná...", "Celeste", "Agu", "Mamá"])
+    
+    if user != "Seleccionar...":
+        # Entrada de PIN
+        pin = st.text_input(f"Hola {user}, ingresá tu PIN:", type="password", maxlength=4)
         
-        # 2. Buscamos el código con el motor de lectura
-        resultados = zxingcpp.read_barcodes(img)
-        
-        if resultados:
-            codigo_leido = resultados[0].text
-            st.success(f"✅ Código detectado: {codigo_leido}")
-            
-            # 3. Buscamos en el Excel
-            # Buscamos la columna de códigos automáticamente
-            col_cod = next((c for c in df.columns if "barra" in c.lower() or "codigo" in c.lower()), df.columns[0])
-            producto = df[df[col_cod] == codigo_leido]
-            
-            if not producto.empty:
-                st.balloons()
-                for index, row in producto.iterrows():
-                    # Buscamos nombre, precio y stock automáticamente
-                    col_nom = next((c for c in df.columns if "prod" in c.lower() or "nombre" in c.lower()), df.columns[1])
-                    col_pre = next((c for c in df.columns if "prec" in c.lower()), "Precio")
-                    col_sto = next((c for c in df.columns if "stock" in c.lower()), "Stock")
-                    
-                    st.markdown(f"## 📦 {row[col_nom]}")
-                    c1, c2 = st.columns(2)
-                    c1.metric("PRECIO", f"${row.get(col_pre, '0')}")
-                    c2.metric("STOCK", f"{row.get(col_sto, '0')} un.")
+        if st.button("ENTRAR AL SISTEMA", use_container_width=True):
+            if pin == usuarios.get(user):
+                st.session_state['autenticado'] = True
+                st.session_state['usuario'] = user
+                st.success("Acceso concedido. Cargando...")
+                st.rerun()
             else:
-                st.warning(f"El código {codigo_leido} no está en tu Excel.")
-        else:
-            st.error("No se pudo leer el código. Intentá que la foto salga nítida y con buena luz.")
+                st.error("PIN incorrecto. Revisalo.")
 
-    st.divider()
-    # Buscador manual por si la foto sale borrosa
-    manual = st.text_input("🔍 O buscá escribiendo el nombre:")
-    if manual:
-        res = df[df.apply(lambda row: manual.lower() in row.astype(str).str.lower().values, axis=1)]
-        if not res.empty:
-            st.dataframe(res, hide_index=True)
+# --- PANTALLA PRINCIPAL (Solo se ve si el PIN es correcto) ---
+else:
+    st.sidebar.title(f"👤 {st.session_state['usuario']}")
+    if st.sidebar.button("Cerrar Sesión"):
+        st.session_state['autenticado'] = False
+        st.rerun()
 
-st.divider()
-st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
+    st.write(f"## ¡Bienvenida, {st.session_state['usuario']}!")
+    st.write("---")
+    st.info("✅ PASO 1 COMPLETADO: Acceso y Seguridad.")
+    
+    # Aquí es donde vamos a poner el PASO 2
+    st.write("### ¿Qué sigue ahora?")
+    st.write("Elegí el siguiente paso:")
+    st.button("📦 Configurar Inventario y Costos")
+    st.button("💰 Cargar Gastos Mensuales (Para calcular la Meta)")
