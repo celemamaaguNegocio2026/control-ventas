@@ -4,7 +4,7 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Sistema Pro Celeste", page_icon="🛍️")
 
-st.title("🛡️ Sistema Celeste v1.1")
+st.title("🛡️ Sistema Celeste v1.2")
 
 # --- 1. CONEXIÓN AL EXCEL ---
 url_planilla = "https://docs.google.com/spreadsheets/d/1pSb1ttNGH4RTDgG11aMx23z177QMfXw9LUrLGPQu6vM/edit?usp=sharing"
@@ -14,7 +14,6 @@ csv_url = url_planilla.replace("/edit?usp=sharing", "/export?format=csv&gid=0")
 def cargar_datos():
     try:
         data = pd.read_csv(csv_url, dtype=str)
-        # Limpiamos los nombres de las columnas por si tienen espacios invisibles
         data.columns = [str(c).strip() for c in data.columns]
         return data
     except:
@@ -45,7 +44,7 @@ if df is not None:
                     constraints: { facingMode: "environment" }
                 },
                 decoder: {
-                    readers: ["ean_reader", "ean_8_reader", "code_128_reader", "upc_reader"]
+                    readers: ["ean_reader", "ean_8_reader", "code_128_reader", "upc_reader", "code_39_reader"]
                 },
                 locate: true
             }, function(err) {
@@ -67,44 +66,33 @@ if df is not None:
         height=400,
     )
 
-    if codigo_detectado:
+    # --- FILTRO DE SEGURIDAD ---
+    # Solo procesamos si hay algo detectado Y es un texto corto (un código real)
+    if codigo_detectado and len(str(codigo_detectado)) < 30 and "DeltaGenerator" not in str(codigo_detectado):
         st.divider()
         val = str(codigo_detectado).strip()
         
-        # --- BUSCADOR INTELIGENTE DE COLUMNA ---
-        # Buscamos cuál de tus columnas es la de los códigos
-        col_busqueda = None
-        posibles_nombres = ["codigo", "barra", "barras", "code"]
-        
-        for c in df.columns:
-            if any(n in c.lower() for n in posibles_nombres):
-                col_busqueda = c
-                break
-        
-        # Si no encontró ninguna con esos nombres, usa la primera columna por defecto
-        if not col_busqueda:
-            col_busqueda = df.columns[0]
+        # Buscador de columna (ya sabemos que es Codigo_Barras por tu error anterior)
+        col_busqueda = next((c for c in df.columns if "barra" in c.lower() or "codigo" in c.lower()), df.columns[0])
 
-        # Buscamos el producto
         producto = df[df[col_busqueda] == val]
         
         if not producto.empty:
             st.balloons()
             for index, row in producto.iterrows():
                 st.success(f"📦 PRODUCTO ENCONTRADO")
-                # Buscamos la columna del nombre del producto
+                # Intentamos mostrar el nombre del producto
                 col_nombre = next((c for c in df.columns if "prod" in c.lower() or "nombre" in c.lower()), df.columns[1])
                 st.header(row[col_nombre])
                 
                 c1, c2 = st.columns(2)
-                # Buscamos precios y stock de forma flexible
                 col_precio = next((c for c in df.columns if "prec" in c.lower()), "Precio")
                 col_stock = next((c for c in df.columns if "stock" in c.lower()), "Stock")
                 
                 c1.metric("PRECIO", f"${row.get(col_precio, '0')}")
                 c2.metric("STOCK", f"{row.get(col_stock, '0')} un.")
         else:
-            st.warning(f"El código {val} no está en tu Excel (Columna: {col_busqueda})")
+            st.warning(f"El código {val} no está en tu Excel.")
 
 st.divider()
-st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
+st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform"))
