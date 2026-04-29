@@ -6,10 +6,8 @@ from datetime import datetime
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="celeagumama - Gestión", layout="centered")
 
-# 1. ID de tu Excel (Para leer datos si fuera necesario)
+# 1. Identificadores de Google (Copiados de tus links)
 ID_EXCEL = "1zcya1QAR3hnbddUruZSvfSkLATnM3XCvqrMndEY_UAg"
-
-# 2. URL de ENVÍO de tu Formulario (Debe terminar en /formResponse)
 URL_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSdsxCKcF5JTe-_q0MxqV2PmKXlpuizVipmRywMSzfhmGNNrXQ/formResponse"
 
 # --- FUNCIONES ---
@@ -17,36 +15,34 @@ def enviar_venta_a_excel(usuario, monto, detalle):
     """Envía los datos al Excel a través del Google Form"""
     fecha_hoy = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     
-    # Estos son los códigos entry de tu formulario actual
-    # Los enviamos como strings para que Google los acepte siempre
+    # IDs de las preguntas (entries) verificados de tu link
     datos = {
-        "entry.888769345": str(usuario),
-        "entry.310360706": str(monto),
-        "entry.685382042": str(detalle),
-        "entry.444736630": str(fecha_hoy)
+        "entry.888769345": str(usuario),  # Usuario
+        "entry.310360706": str(monto),    # Monto
+        "entry.685382042": str(detalle),  # Detalle
+        "entry.444736630": str(fecha_hoy) # Fecha
     }
     
     try:
-        # Simulamos que somos un navegador para evitar bloqueos
-        headers = {'Referer': URL_FORM, 'User-Agent': "Mozilla/5.0"}
-        respuesta = requests.post(URL_FORM, data=datos, headers=headers)
+        # Enviamos la petición y verificamos que Google responda OK
+        respuesta = requests.post(URL_FORM, data=datos)
         return respuesta.status_code == 200
     except:
         return False
 
-# --- LÓGICA DE LOGIN ---
+# --- LÓGICA DE ACCESO ---
 usuarios_fijos = {"Celeste": "1997", "Agu": "1995", "Mamá": "1975"}
 
 if 'autenticado' not in st.session_state:
     st.session_state['autenticado'] = False
 
 if not st.session_state['autenticado']:
-    st.title("🔐 Acceso Gestión Familiar")
-    user = st.selectbox("¿Quién sos?", ["Seleccionar...", "Celeste", "Agu", "Mamá"])
+    st.markdown("<h2 style='text-align: center;'>🔐 Control de Ventas</h2>", unsafe_allow_html=True)
+    user = st.selectbox("Seleccioná tu nombre:", ["Seleccionar...", "Celeste", "Agu", "Mamá"])
     
     if user != "Seleccionar...":
         pin = st.text_input(f"PIN de {user}:", type="password", max_chars=4)
-        if st.button("ENTRAR", use_container_width=True):
+        if st.button("INGRESAR", use_container_width=True):
             if pin == usuarios_fijos.get(user):
                 st.session_state['autenticado'] = True
                 st.session_state['usuario'] = user
@@ -54,47 +50,46 @@ if not st.session_state['autenticado']:
             else:
                 st.error("PIN incorrecto")
 
-# --- PANTALLA PRINCIPAL (LOGUEADO) ---
+# --- PANEL PRINCIPAL ---
 else:
     st.sidebar.title(f"👤 {st.session_state['usuario']}")
-    menu = st.sidebar.radio("Ir a:", ["Cargar Ventas", "Configurar Metas"])
+    opcion = st.sidebar.radio("Menú:", ["Cargar Venta", "Ver Gastos y Metas"])
     
     if st.sidebar.button("Cerrar Sesión"):
         st.session_state['autenticado'] = False
         st.rerun()
 
-    if menu == "Cargar Ventas":
-        st.title("💰 Registro de Ventas")
+    if opcion == "Cargar Venta":
+        st.title("💰 Registro de Venta Diaria")
         
         with st.container(border=True):
-            monto_v = st.number_input("Monto de la venta ($):", min_value=0, step=10, value=0)
-            detalle_v = st.text_input("¿Qué se vendió?")
+            monto_v = st.number_input("Monto en pesos ($):", min_value=0, step=100, value=0)
+            detalle_v = st.text_input("Comentario (Opcional):", placeholder="Ej: Venta panadería")
             
-            if st.button("🚀 REGISTRAR VENTA", use_container_width=True):
+            if st.button("🚀 REGISTRAR AHORA", use_container_width=True):
                 if monto_v > 0:
-                    with st.spinner("Guardando en la nube..."):
-                        exito = enviar_venta_a_excel(st.session_state['usuario'], monto_v, detalle_v)
-                    
-                    if exito:
-                        st.success(f"¡Hecho! Se guardó la venta de ${monto_v}")
-                        st.balloons()
-                    else:
-                        st.error("Error técnico al guardar. Avisame si persiste.")
+                    with st.spinner("Conectando con Google Sheets..."):
+                        if enviar_venta_a_excel(st.session_state['usuario'], monto_v, detalle_v):
+                            st.success(f"¡Excelente! Venta de ${monto_v} registrada.")
+                            st.balloons()
+                        else:
+                            st.error("No se pudo guardar. Revisá la conexión.")
                 else:
-                    st.warning("El monto debe ser mayor a 0.")
+                    st.warning("Ingresá un monto mayor a cero.")
 
-        st.info("Recordá que podés ver el listado total en la pestaña 'Respuestas de formulario 1' de tu Excel.")
-
-    elif menu == "Configurar Metas":
-        st.title("📊 Configuración de Gastos")
-        alquiler = st.number_input("Alquiler:", value=0)
-        luz = st.number_input("Luz/Servicios:", value=0)
-        sueldos = st.number_input("Sueldos/Retiros:", value=0)
-        insumos = st.number_input("Insumos:", value=0)
+    elif opcion == "Ver Gastos y Metas":
+        st.title("📊 Calculadora de Negocio")
+        c1, c2 = st.columns(2)
+        with c1:
+            g1 = st.number_input("Alquiler:", value=0)
+            g2 = st.number_input("Servicios (Luz/Gas):", value=0)
+        with c2:
+            g3 = st.number_input("Sueldos/Retiros:", value=0)
+            g4 = st.number_input("Otros Gastos:", value=0)
         
-        total = alquiler + luz + sueldos + insumos
+        total = g1 + g2 + g3 + g4
         meta = total / 30
         
         st.divider()
-        st.metric("TOTAL GASTOS", f"${total:,.2f}")
-        st.metric("META DIARIA", f"${meta:,.2f}")
+        st.subheader(f"Gastos Mensuales: ${total:,.2f}")
+        st.info(f"🎯 **Meta para cubrir gastos:** Deben vender **${meta:,.2f}** por día.")
