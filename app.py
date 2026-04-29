@@ -72,7 +72,7 @@ if df is not None:
         st.divider()
         val = str(codigo_detectado).strip()
         
-        # Buscador de columna (ya sabemos que es Codigo_Barras por tu error anterior)
+        # Buscador de columna
         col_busqueda = next((c for c in df.columns if "barra" in c.lower() or "codigo" in c.lower()), df.columns[0])
 
         producto = df[df[col_busqueda] == val]
@@ -81,7 +81,6 @@ if df is not None:
             st.balloons()
             for index, row in producto.iterrows():
                 st.success(f"📦 PRODUCTO ENCONTRADO")
-                # Intentamos mostrar el nombre del producto
                 col_nombre = next((c for c in df.columns if "prod" in c.lower() or "nombre" in c.lower()), df.columns[1])
                 st.header(row[col_nombre])
                 
@@ -95,4 +94,4 @@ if df is not None:
             st.warning(f"El código {val} no está en tu Excel.")
 
 st.divider()
-st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform"))
+st.link_button("💰 REGISTRAR VENTA", "https://docs.google.com/forms/d/e/1FAIpQLSeAkoHMMcoBV516gZcOSgzheOUfXHv9q2Fy_vpWKBFEIUzKWw/viewform")
