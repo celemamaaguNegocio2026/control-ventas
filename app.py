@@ -2,132 +2,120 @@ import streamlit as st
 import requests
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Gestión Familiar PRO", layout="wide")
+st.set_page_config(page_title="Gestión Familiar Ultra", layout="wide")
 
-# URL de tu Script de Google (La que ya configuramos)
 URL_SCRIPT = "https://script.google.com/macros/s/AKfycbx0q2DspEDVcKu4khSyfFZZCrkuDohRntM5X2U-BVYUFYgGGtDLAVLLjQEI7vCUZOR3pA/exec"
 
-# --- FUNCIONES DE CONEXIÓN ---
+# --- FUNCIONES ---
 def obtener_productos():
-    """Trae la lista de productos desde la pestaña PRODUCTOS"""
     try:
-        respuesta = requests.get(URL_SCRIPT, timeout=10)
-        if respuesta.status_code == 200:
-            return respuesta.json()
-        return []
-    except:
-        return []
+        r = requests.get(URL_SCRIPT, timeout=10)
+        return r.json() if r.status_code == 200 else []
+    except: return []
 
-def enviar_venta(usuario, monto, detalle, metodo, producto_nombre=""):
-    """Envía la venta al Excel y descuenta stock si corresponde"""
-    fecha_hoy = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-    payload = {
-        "fecha": fecha_hoy,
-        "usuario": usuario,
-        "monto": monto,
-        "detalle": f"[{metodo}] {detalle}",
-        "producto_nombre": producto_nombre
-    }
+def enviar_datos(payload):
     try:
         r = requests.post(URL_SCRIPT, params=payload, timeout=15)
         return r.status_code == 200
-    except:
-        return False
+    except: return False
 
-# --- SISTEMA DE LOGUEO ---
-usuarios_fijos = {"Celeste": "1997", "Agu": "1995", "Mamá": "1975"}
-
-if 'autenticado' not in st.session_state:
-    st.session_state['autenticado'] = False
+# --- LOGIN ---
+usuarios = {"Celeste": "1997", "Agu": "1995", "Mamá": "1975"}
+if 'autenticado' not in st.session_state: st.session_state['autenticado'] = False
 
 if not st.session_state['autenticado']:
-    st.markdown("<h2 style='text-align: center;'>🔐 Acceso Gestión</h2>", unsafe_allow_html=True)
-    user = st.selectbox("¿Quién sos?", ["Seleccionar...", "Celeste", "Agu", "Mamá"])
-    if user != "Seleccionar...":
-        pin = st.text_input(f"PIN de {user}:", type="password", max_chars=4)
-        if st.button("ENTRAR", use_container_width=True):
-            if pin == usuarios_fijos.get(user):
-                st.session_state['autenticado'] = True
-                st.session_state['usuario'] = user
+    st.title("🔐 Acceso")
+    u = st.selectbox("Usuario:", ["Seleccionar..."] + list(usuarios.keys()))
+    if u != "Seleccionar...":
+        p = st.text_input("PIN:", type="password")
+        if st.button("ENTRAR"):
+            if p == usuarios[u]:
+                st.session_state.update({"autenticado": True, "usuario": u})
                 st.rerun()
-            else:
-                st.error("PIN incorrecto")
-
-# --- PANEL PRINCIPAL (Solo si está autenticado) ---
 else:
-    st.title(f"🏪 Panel de Ventas - {st.session_state['usuario']}")
+    # --- PANEL PRINCIPAL ---
+    st.sidebar.title(f"👤 {st.session_state['usuario']}")
     
-    # Intentamos cargar productos del Excel
-    with st.spinner("Actualizando precios y stock..."):
-        lista_productos = obtener_productos()
+    # META DIARIA (Ejemplo: $50.000)
+    meta_objetivo = 50000 
+    venta_actual = 0 # Esto lo conectaremos al Excel después para que sea real
     
-    col1, col2 = st.columns([1, 1])
+    st.subheader("📊 Meta Diaria")
+    progreso = min(venta_actual / meta_objetivo, 1.0)
+    st.progress(progreso)
+    st.write(f"Vendido: ${venta_actual} / Objetivo: ${meta_objetivo}")
 
-    with col1:
-        st.subheader("🛒 Registrar Venta")
-        with st.container(border=True):
-            nombres_prod = [p['nombre'] for p in lista_productos]
-            prod_sel = st.selectbox("Elegí Producto:", ["Venta Manual"] + nombres_prod)
+    tab1, tab2 = st.tabs(["💰 VENTAS", "📉 GASTOS"])
+
+    with tab1:
+        with st.spinner("Cargando productos..."):
+            prods = obtener_productos()
+        
+        col_v1, col_v2 = st.columns(2)
+        with col_v1:
+            st.markdown("### Registrar Venta")
+            nombres = [p['nombre'] for p in prods]
+            sel = st.selectbox("Producto:", ["Manual"] + nombres)
             
-            monto_final = 0
-            detalle_final = ""
-            prod_nombre_para_stock = ""
-
-            if prod_sel == "Venta Manual":
-                monto_final = st.number_input("Precio ($):", min_value=0, step=50, value=0)
-                detalle_final = st.text_input("Detalle de la venta:", placeholder="Ej: Varios panadería")
+            monto = 0
+            prod_nombre = ""
+            if sel == "Manual":
+                monto = st.number_input("Monto ($):", min_value=0)
+                desc = st.text_input("Detalle:")
             else:
-                # Buscamos los datos del producto elegido
-                datos_p = next(p for p in lista_productos if p['nombre'] == prod_sel)
-                
-                # REEMPLAZO ANTI-ERROR: Validamos que el precio sea un número válido
-                try:
-                    # Usamos float por si hay decimales, y luego int
-                    precio_sugerido = int(float(datos_p.get('venta', 0)))
-                except (ValueError, TypeError):
-                    precio_sugerido = 0
-                
-                monto_final = st.number_input("Confirmar Precio ($):", value=precio_sugerido)
-                
-                # Mostramos stock si existe
-                stock_actual = datos_p.get('stock', 0)
-                st.info(f"Stock disponible: {stock_actual} unidades")
-                
-                detalle_final = f"Producto: {prod_sel}"
-                prod_nombre_para_stock = prod_sel
+                p_data = next(item for item in prods if item['nombre'] == sel)
+                monto = st.number_input("Precio ($):", value=int(float(p_data['venta'])))
+                desc = f"Venta: {sel}"
+                prod_nombre = sel
+                st.caption(f"Stock: {p_data['stock']}")
 
-            metodo_pago = st.radio("Forma de pago:", ["Efectivo", "Mercado Pago", "Fiado"], horizontal=True)
+            metodo = st.radio("Pago:", ["Efectivo", "Mercado Pago", "Fiado"], horizontal=True)
+            
+            if st.button("GUARDAR VENTA"):
+                payload = {
+                    "fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                    "usuario": st.session_state['usuario'],
+                    "monto": monto,
+                    "detalle": f"[{metodo}] {desc}",
+                    "producto_nombre": prod_nombre
+                }
+                if enviar_datos(payload):
+                    st.success("¡Venta guardada!"); st.balloons()
+        
+        with col_v2:
+            st.markdown("### Consumo Casa")
+            if nombres:
+                c_sel = st.selectbox("Qué sacaron?", nombres)
+                if st.button("DESCONTAR DE STOCK"):
+                    payload = {
+                        "fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                        "usuario": st.session_state['usuario'],
+                        "monto": 0,
+                        "detalle": f"CONSUMO CASA: {c_sel}",
+                        "producto_nombre": c_sel
+                    }
+                    if enviar_datos(payload): st.warning("Stock actualizado")
 
-            if st.button("🚀 REGISTRAR VENTA", use_container_width=True):
-                if monto_final > 0 or "CONSUMO" in detalle_final:
-                    with st.spinner("Guardando..."):
-                        exito = enviar_venta(st.session_state['usuario'], monto_final, detalle_final, metodo_pago, prod_nombre_para_stock)
-                    
-                    if exito:
-                        st.success("¡Venta registrada con éxito!")
-                        st.balloons()
-                        st.rerun()
-                    else:
-                        st.error("Error de conexión con el Excel.")
-                else:
-                    st.warning("Ingresá un monto válido.")
-
-    with col2:
-        st.subheader("🏠 Consumo de la Casa")
+    with tab2:
+        st.subheader("Registro de Gastos")
         with st.container(border=True):
-            st.write("Registrá lo que retiren para uso personal (no suma dinero).")
-            if nombres_prod:
-                prod_casa = st.selectbox("¿Qué retiraron?", nombres_prod, key="casa_select")
-                if st.button("🍎 REGISTRAR COMO CONSUMO", use_container_width=True):
-                    with st.spinner("Actualizando stock..."):
-                        if enviar_venta(st.session_state['usuario'], 0, f"CONSUMO CASA: {prod_casa}", "CASA", prod_casa):
-                            st.warning(f"Se descontó 1 {prod_casa} del inventario.")
-                            st.rerun()
-            else:
-                st.write("Cargá productos en el Excel para ver esta sección.")
+            cat = st.selectbox("Categoría:", ["Mercadería", "Luz/Servicios", "Alquiler", "Sueldos", "Otros"])
+            monto_g = st.number_input("Monto Gasto ($):", min_value=0)
+            det_g = st.text_input("Detalle del gasto:")
+            
+            if st.button("REGISTRAR GASTO"):
+                payload_g = {
+                    "tipo": "gasto",
+                    "fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+                    "usuario": st.session_state['usuario'],
+                    "categoria": cat,
+                    "monto": monto_g,
+                    "detalle": det_g
+                }
+                if enviar_datos(payload_g):
+                    st.error(f"Gasto de ${monto_g} anotado.")
+                    st.rerun()
 
-    st.sidebar.divider()
     if st.sidebar.button("Cerrar Sesión"):
         st.session_state['autenticado'] = False
         st.rerun()
