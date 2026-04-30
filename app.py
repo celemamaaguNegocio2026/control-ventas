@@ -73,6 +73,9 @@ else:
         metodo = st.radio("Pago:", ["Efectivo", "Mercado Pago", "Fiado"], horizontal=True)
         c_fiado = st.selectbox("¿A quién?", [c['nombre'] for c in clis]) if metodo == "Fiado" else ""
         
+        es_envio = st.checkbox("¿Es para enviar?")
+        direccion = st.text_input("Dirección de entrega:") if es_envio else ""
+        
         if st.button("🚀 GUARDAR"):
             payload = {
                 "fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
@@ -84,6 +87,8 @@ else:
                 "cliente": c_fiado
             }
             if enviar_datos(payload):
+                if es_envio:
+                    enviar_datos({"tipo": "envio", "fecha": payload["fecha"], "cliente": c_fiado if c_fiado else "Mostrador", "direccion": direccion, "total": monto})
                 st.success("¡Venta Guardada!"); st.rerun()
 
     # --- TAB 2: CLIENTES ---
@@ -97,20 +102,28 @@ else:
                     if st.button(f"Cobrar", key=f"b_{c['nombre']}"):
                         if enviar_datos({"tipo": "cobro", "cliente": c['nombre'], "monto": pago}): st.rerun()
 
-    # --- TAB 3: REPARTO ---
+    # --- TAB 3: REPARTO (CORREGIDO) ---
     with tabs[2]:
-        st.subheader("Envíos Pendientes")
-        for e in envios:
-            with st.container(border=True):
-                st.write(f"**{e['cliente']}** - ${e['total']}")
-                st.write(f"🏠 {e['direccion']}")
-                if st.button("Entregado", key=f"env_{e['id']}"):
-                    if enviar_datos({"tipo": "estado_envio", "id": e['id']}): st.rerun()
+        st.subheader("🛵 Envíos Pendientes")
+        if not envios:
+            st.info("No hay pedidos en camino por ahora.")
+        else:
+            for e in envios:
+                with st.container(border=True):
+                    col_e1, col_e2 = st.columns([3, 1])
+                    with col_e1:
+                        st.write(f"**Cliente:** {e['cliente']}")
+                        st.write(f"💰 **Cobrar:** ${e['total']}")
+                        st.write(f"🏠 **Dir:** {e['direccion']}")
+                    with col_e2:
+                        if st.button("✅ Entregado", key=f"env_{e['id']}"):
+                            if enviar_datos({"tipo": "estado_envio", "id": e['id']}):
+                                st.rerun()
 
     # --- TAB 4: INTELIGENCIA ---
     with tabs[3]:
         st.subheader("Buscador de Clientes")
-        it = st.text_input("Producto:")
+        it = st.text_input("Producto buscado:")
         if it:
             interesados = list(set([h['cliente'] for h in historial if it.lower() in h['detalle'].lower() and h['cliente'] != ""]))
             for cli in interesados:
@@ -138,13 +151,13 @@ else:
             f"💵 *Efectivo:* ${efectivo}%0A"
             f"💳 *MP:* ${mp}%0A"
             f"📝 *Fiados:* ${fiados}%0A"
-            f"👤 *Hizo el cierre:* {st.session_state['usuario']}"
+            f"👤 *Responsable:* {st.session_state['usuario']}"
         )
         
         st.markdown(f"""
             <a href="https://wa.me/?text={reporte}" target="_blank">
                 <button style="width:100%; background-color:#25D366; color:white; border:none; padding:15px; border-radius:10px; font-weight:bold; cursor:pointer;">
-                    📤 ENVIAR CIERRE POR WHATSAPP
+                    📤 ENVIAR REPORTE POR WHATSAPP
                 </button>
             </a>
         """, unsafe_allow_html=True)
