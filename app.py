@@ -2,43 +2,39 @@ import streamlit as st
 import requests
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Gestión MASTER Pro", layout="centered", initial_sidebar_state="expanded")
+# --- CONFIGURACIÓN ---
+st.set_page_config(page_title="Gestión MASTER Final", layout="centered", initial_sidebar_state="expanded")
 
-# CSS para asegurar que el teclado funcione y el diseño sea limpio en móvil
+# CSS para dispositivos móviles
 st.markdown("""
     <style>
     input { font-size: 16px !important; }
-    .stButton>button { border-radius: 8px; font-weight: bold; }
-    .stMetric { background-color: #f8f9fa; padding: 10px; border-radius: 10px; border: 1px solid #eee; }
+    .stNumberInput, .stTextInput { margin-bottom: -15px; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3em; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
 URL_SCRIPT = "https://script.google.com/macros/s/AKfycbx0q2DspEDVcKu4khSyfFZZCrkuDohRntM5X2U-BVYUFYgGGtDLAVLLjQEI7vCUZOR3pA/exec"
 
-# --- FUNCIONES DE DATOS ---
 def obtener_datos():
     try:
         r = requests.get(URL_SCRIPT, timeout=10)
         if r.status_code == 200:
-            datos = r.json()
-            st.session_state['backup'] = datos
-            return datos
+            d = r.json()
+            st.session_state['backup'] = d
+            return d
         return st.session_state.get('backup', {})
     except:
         return st.session_state.get('backup', {"productos":[], "clientes":[], "balance":{}, "envios":[]})
 
 def enviar_datos(payload):
     try:
-        r = requests.post(URL_SCRIPT, params=payload, timeout=10)
-        return r.status_code == 200
+        return requests.post(URL_SCRIPT, params=payload, timeout=10).status_code == 200
     except: return False
 
-# --- INICIALIZACIÓN DE ESTADOS ---
-if 'items_venta' not in st.session_state: st.session_state['items_venta'] = []
 if 'autenticado' not in st.session_state: st.session_state['autenticado'] = False
 
-# --- LOGIN ---
+# --- ACCESO ---
 if not st.session_state['autenticado']:
     st.title("🔐 Acceso")
     u = st.selectbox("Usuario:", ["Seleccionar...", "Celeste", "Agu", "Mamá"])
@@ -53,95 +49,74 @@ if not st.session_state['autenticado']:
 else:
     datos = obtener_datos()
     
-    # --- MENÚ LATERAL ---
     with st.sidebar:
         st.title(f"👋 {st.session_state['usuario']}")
-        menu = st.radio("IR A:", ["💰 Ventas", "👥 Clientes", "🛵 Repartos", "📊 Balance"])
+        menu = st.radio("MENÚ", ["💰 Ventas", "👥 Clientes", "🛵 Repartos", "📊 Balance"])
         st.divider()
         if st.button("Cerrar Sesión"):
             st.session_state['autenticado'] = False
             st.rerun()
 
-    # --- SECCIÓN VENTAS ---
+    # --- SECCIÓN VENTAS (DISEÑO DE CARGA RÁPIDA) ---
     if menu == "💰 Ventas":
-        st.header("🛒 Nueva Venta")
+        st.header("🛒 Registrar Venta")
         
-        modo = st.radio("Cargar producto:", ["De la Lista", "A mano"], horizontal=True)
-        c1, c2 = st.columns([3, 1])
+        cant = st.number_input("¿Cuántos productos lleva?", min_value=1, max_value=15, value=1)
         
-        with c1:
-            if modo == "A mano":
-                p_nom = st.text_input("¿Qué es?", placeholder="Ej: Coca 1.5", key="m_nom")
-                p_pre = st.number_input("Precio ($):", min_value=0, step=10, key="m_pre")
+        lista_venta = []
+        total_acumulado = 0
+        
+        st.write("---")
+        for i in range(int(cant)):
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                n = st.text_input(f"Producto {i+1}", key=f"n_{i}", placeholder="Nombre...")
+            with col2:
+                p = st.number_input(f"Precio {i+1}", key=f"p_{i}", min_value=0, step=10)
+            
+            if n:
+                lista_venta.append(n)
+                total_acumulado += p
+        
+        st.write("---")
+        st.write(f"### TOTAL: ${total_acumulado}")
+        
+        metodo = st.radio("PAGO:", ["Efectivo", "Mercado Pago", "Fiado"], horizontal=True)
+        cliente_v = st.selectbox("CLIENTE:", [c['nombre'] for c in datos.get('clientes', [])]) if metodo == "Fiado" else ""
+        
+        # Opción de Envío integrada
+        es_envio = st.checkbox("🛵 ¿Es para envío?")
+        dire = st.text_input("Dirección:") if es_envio else ""
+
+        if st.button("✅ GUARDAR VENTA TOTAL"):
+            if not lista_venta:
+                st.error("No hay productos cargados")
             else:
-                prods_nombres = [p['nombre'] for p in datos.get('productos', [])]
-                sel = st.selectbox("Elegir:", ["Seleccionar..."] + prods_nombres)
-                if sel != "Seleccionar...":
-                    p_nom = sel
-                    p_info = next(i for i in datos['productos'] if i['nombre'] == sel)
-                    try: sug = int(float(str(p_info.get('venta', 0)).replace(',','.')))
-                    except: sug = 0
-                    p_pre = st.number_input("Precio ($):", value=sug, key="f_pre")
-                    st.caption(f"Stock actual: {p_info.get('stock', 0)}")
-                else:
-                    p_nom, p_pre = "", 0
-
-        with c2:
-            st.write("##")
-            if st.button("➕", help="Sumar otro"):
-                if p_nom:
-                    st.session_state['items_venta'].append({"nombre": p_nom, "precio": p_pre})
-                    st.toast(f"Sumado: {p_nom}")
-                else: st.error("Falta info")
-
-        # Mostrar lista acumulada
-        if st.session_state['items_venta']:
-            st.write("---")
-            total_v = 0
-            for idx, item in enumerate(st.session_state['items_venta']):
-                ca, cb = st.columns([4, 1])
-                ca.write(f"✅ {item['nombre']} - ${item['precio']}")
-                total_v += item['precio']
-                if cb.button("🗑️", key=f"del_{idx}"):
-                    st.session_state['items_venta'].pop(idx)
-                    st.rerun()
-            
-            st.write(f"### TOTAL: ${total_v}")
-            
-            met = st.radio("FORMA DE PAGO:", ["Efectivo", "Mercado Pago", "Fiado"], horizontal=True)
-            cli = st.selectbox("¿A QUIÉN?", [c['nombre'] for c in datos.get('clientes', [])]) if met == "Fiado" else ""
-            
-            # Opción de Envío
-            es_envio = st.checkbox("🛵 ¿Es para envío?")
-            dire = st.text_input("Dirección de entrega:") if es_envio else ""
-
-            if st.button("🚀 FINALIZAR VENTA", use_container_width=True):
-                nombres_final = ", ".join([x['nombre'] for x in st.session_state['items_venta']])
+                detalle_txt = ", ".join(lista_venta)
                 payload = {
                     "fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                     "usuario": st.session_state['usuario'],
-                    "monto": total_v,
-                    "detalle": f"[{met}] {nombres_final}",
-                    "producto_nombre": nombres_final,
-                    "metodo": met,
-                    "cliente": cli
+                    "monto": total_acumulado,
+                    "detalle": f"[{metodo}] {detalle_txt}",
+                    "producto_nombre": detalle_txt,
+                    "metodo": metodo,
+                    "cliente": cliente_v
                 }
                 if enviar_datos(payload):
-                    if es_envio: # Si es envío, mandamos el segundo registro
-                        enviar_datos({"tipo": "envio", "cliente": cli if cli else "Mostrador", "direccion": dire, "total": total_v})
-                    st.success("Venta guardada!")
-                    st.session_state['items_venta'] = []
+                    if es_envio:
+                        enviar_datos({"tipo": "envio", "cliente": cliente_v if cliente_v else "Venta Rapida", "direccion": dire, "total": total_acumulado})
+                    st.success("¡Guardado!")
                     st.rerun()
 
     # --- SECCIÓN CLIENTES ---
     elif menu == "👥 Clientes":
-        st.header("👥 Cuentas de Clientes")
+        st.header("👥 Cuentas")
         for c in datos.get('clientes', []):
             saldo = float(c.get('saldo', 0))
             if saldo > 0:
-                with st.expander(f"🔴 {c['nombre']} - Debe: ${saldo}"):
-                    pago = st.number_input("Monto que paga:", max_value=int(saldo), key=f"p_{c['nombre']}")
-                    if st.button("Registrar Cobro", key=f"b_{c['nombre']}"):
+                with st.expander(f"🔴 {c['nombre']} - ${saldo}"):
+                    pago = st.number_input(f"Pago de {c['nombre']}", max_value=int(saldo), key=f"p_{c['nombre']}")
+                    if st.button("Cobrar", key=f"b_{c['nombre']}"):
                         if enviar_datos({"tipo": "cobro", "cliente": c['nombre'], "monto": pago}):
                             st.rerun()
 
@@ -149,20 +124,19 @@ else:
     elif menu == "🛵 Repartos":
         st.header("🛵 Envíos Pendientes")
         envios = datos.get('envios', [])
-        if not envios: st.info("No hay repartos pendientes")
+        if not envios: st.info("Todo entregado.")
         for e in envios:
-            st.warning(f"📍 {e['direccion']}\n\n**{e['cliente']}** - ${e['total']}")
-            if st.button(f"Marcar Entregado ✅", key=f"env_{e['id']}"):
+            st.warning(f"📍 {e['direccion']}\n**{e['cliente']}** - ${e['total']}")
+            if st.button(f"Entregado ✅", key=f"env_{e['id']}"):
                 if enviar_datos({"tipo": "estado_envio", "id": e['id']}):
                     st.rerun()
 
     # --- SECCIÓN BALANCE ---
     elif menu == "📊 Balance":
-        st.header("📊 Balance de Hoy")
+        st.header("📊 Balance Hoy")
         bal = datos.get('balance', {})
-        st.metric("VENTAS TOTALES", f"${bal.get('ventasHoy', 0)}")
-        
+        st.metric("TOTAL", f"${bal.get('ventasHoy', 0)}")
         c1, c2 = st.columns(2)
-        c1.metric("Efectivo", f"${bal.get('efectivo', 0)}")
-        c2.metric("M. Pago", f"${bal.get('mercadoPago', 0)}")
-        st.metric("Fiados hoy", f"${bal.get('fiados', 0)}")
+        c1.write(f"💵 Efectivo: ${bal.get('efectivo', 0)}")
+        c2.write(f"💳 M.Pago: ${bal.get('mercadoPago', 0)}")
+        st.write(f"📝 Fiados hoy: ${bal.get('fiados', 0)}")
