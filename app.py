@@ -9,7 +9,9 @@ URL_SCRIPT = "https://script.google.com/macros/s/AKfycbx0q2DspEDVcKu4khSyfFZZCrk
 def obtener_datos():
     try:
         r = requests.get(URL_SCRIPT, timeout=15)
-        return r.json() if r.status_code == 200 else {"productos": [], "clientes": []}
+        if r.status_code == 200:
+            return r.json()
+        return {"productos": [], "clientes": []}
     except: return {"productos": [], "clientes": []}
 
 def enviar_datos(payload):
@@ -32,11 +34,10 @@ if not st.session_state['autenticado']:
                 st.session_state.update({"autenticado": True, "usuario": u})
                 st.rerun()
 else:
-    # --- CARGA DE DATOS ---
     with st.spinner("Sincronizando con Excel..."):
         datos = obtener_datos()
-        prods = datos['productos']
-        clis = datos['clientes']
+        prods = datos.get('productos', [])
+        clis = datos.get('clientes', [])
 
     st.sidebar.title(f"👤 {st.session_state['usuario']}")
     
@@ -50,23 +51,38 @@ else:
             sel_p = st.selectbox("Producto:", ["Manual"] + nombres_p)
             
             monto = 0
+            desc = ""
             if sel_p == "Manual":
                 monto = st.number_input("Monto ($):", min_value=0, key="m_manual")
                 desc = st.text_input("Detalle:", key="d_manual")
             else:
                 p_data = next(item for item in prods if item['nombre'] == sel_p)
-                monto = st.number_input("Precio ($):", value=int(float(p_data['venta'])), key="m_p")
+                
+                # --- ARREGLO PARA EVITAR EL VALUE ERROR ---
+                try:
+                    valor_venta = str(p_data.get('venta', '0')).replace(',', '.')
+                    precio_sugerido = int(float(valor_venta))
+                except:
+                    precio_sugerido = 0
+                
+                monto = st.number_input("Precio ($):", value=precio_sugerido, key="m_p")
                 desc = f"Venta: {sel_p}"
-                st.caption(f"Stock: {p_data['stock']}")
+                st.caption(f"Stock: {p_data.get('stock', 0)}")
 
             metodo = st.radio("Pago:", ["Efectivo", "Mercado Pago", "Fiado"], horizontal=True)
             
             cliente_sel = ""
             if metodo == "Fiado":
-                cliente_sel = st.selectbox("¿A quién le fiamos?", [c['nombre'] for c in clis])
-                c_data = next(item for item in clis if item['nombre'] == cliente_sel)
-                if float(c_data['saldo']) >= float(c_data['limite']):
-                    st.error(f"⚠️ {cliente_sel} superó su límite de de $ {c_data['limite']}")
+                nombres_c = [c['nombre'] for c in clis]
+                if nombres_c:
+                    cliente_sel = st.selectbox("¿A quién le fiamos?", nombres_c)
+                    c_data = next(item for item in clis if item['nombre'] == cliente_sel)
+                    saldo_c = float(c_data.get('saldo', 0))
+                    limite_c = float(c_data.get('limite', 0))
+                    if saldo_c >= limite_c and limite_c > 0:
+                        st.error(f"⚠️ {cliente_sel} debe ${saldo_c}. Superó el límite.")
+                else:
+                    st.warning("No hay clientes cargados en el Excel.")
 
             if st.button("🚀 GUARDAR VENTA"):
                 payload = {
@@ -86,22 +102,32 @@ else:
         cat = st.selectbox("Categoría:", ["Mercadería", "Servicios", "Alquiler", "Sueldos", "Otros"])
         monto_g = st.number_input("Monto Gasto ($):", min_value=0)
         if st.button("REGISTRAR GASTO"):
-            if enviar_datos({"tipo": "gasto", "fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"), "usuario": st.session_state['usuario'], "categoria": cat, "monto": monto_g, "detalle": "Gasto registrado"}):
+            payload_g = {
+                "tipo": "gasto", 
+                "fecha": datetime.now().strftime("%d/%m/%Y %H:%M:%S"), 
+                "usuario": st.session_state['usuario'], 
+                "categoria": cat, 
+                "monto": monto_g, 
+                "detalle": "Gasto registrado"
+            }
+            if enviar_datos(payload_g):
                 st.error("Gasto anotado"); st.rerun()
 
     with tab3:
         st.subheader("Cuentas Pendientes")
-        for c in clis:
-            if float(c['saldo']) > 0:
-                with st.expander(f"🔴 {c['nombre']} - DEBE: ${c['saldo']}"):
-                    monto_pago = st.number_input(f"¿Cuánto paga {c['nombre']}?", min_value=0, max_value=int(float(c['saldo'])), key=f"pago_{c['nombre']}")
-                    if st.button(f"Cobrar a {c['nombre']}", key=f"btn_{c['nombre']}"):
-                        if enviar_datos({"tipo": "cobro", "cliente": c['nombre'], "monto": monto_pago}):
-                            st.success(f"¡Cobro registrado! {c['nombre']} ahora debe menos."); st.rerun()
-            else:
-                st.write(f"🟢 {c['nombre']} está al día.")
+        if clis:
+            for c in clis:
+                saldo_val = float(c.get('saldo', 0))
+                if saldo_val > 0:
+                    with st.expander(f"🔴 {c['nombre']} - DEBE: ${saldo_val}"):
+                        monto_pago = st.number_input(f"¿Cuánto paga?", min_value=0, max_value=int(saldo_val), key=f"pago_{c['nombre']}")
+                        if st.button(f"Cobrar a {c['nombre']}", key=f"btn_{c['nombre']}"):
+                            if enviar_datos({"tipo": "cobro", "cliente": c['nombre'], "monto": monto_pago}):
+                                st.success("¡Cobro registrado!"); st.rerun()
+                else:
+                    st.write(f"🟢 {c['nombre']} está al día.")
+        else:
+            st.info("Cargá clientes en la pestaña CLIENTES del Excel.")
 
     if st.sidebar.button("Cerrar Sesión"):
         st.session_state['autenticado'] = False; st.rerun()
-        st.session_state['autenticado'] = False
-        st.rerun()
